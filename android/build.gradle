@@ -1,0 +1,51 @@
+
+buildscript {
+    repositories {
+        jcenter()
+/*
+        maven {
+            credentials {
+                username NEXUS_USERNAME
+                password NEXUS_PASSWORD
+            }
+            url "https://localytics.jfrog.io/localytics/sdk-android-release-candidates"
+        }
+*/
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:2.3.3'
+    }
+}
+
+apply plugin: 'com.android.library'
+
+repositories {
+jcenter()
+    maven { url 'https://maven.localytics.com/public' }
+}
+
+android {
+    compileSdkVersion 27
+    buildToolsVersion "27.0.3"
+
+    defaultConfig {
+        minSdkVersion 17
+        targetSdkVersion 27
+        versionCode 1
+        versionName "1.0"
+    }
+    lintOptions {
+        abortOnError false
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'com.facebook.react:react-native:+'
+    compile 'com.android.support:support-v4:26.0.2'
+    compile 'com.localytics.android:library:5.2.1'
+}

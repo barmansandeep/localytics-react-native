@@ -1,17 +1,16 @@
 package com.localytics.react.android;
 
+import android.content.Intent;
+
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.RCTNativeAppEventEmitter;
 
-import com.localytics.android.CallToActionListener;
+import com.localytics.android.CallToActionListenerV2;
 import com.localytics.android.Campaign;
 
-import java.util.List;
-import java.util.Map;
-
-public class LLCallToActionListener implements CallToActionListener {
+public class LLCallToActionListener implements CallToActionListenerV2 {
 
   private final RCTNativeAppEventEmitter eventEmitter;
 
@@ -51,4 +50,13 @@ public class LLCallToActionListener implements CallToActionListener {
     eventEmitter.emit("localyticsShouldPromptForLocationPermissions", params);
     return true;
   }
+
+   @Override
+    public boolean localyticsShouldDeeplinkToSettings(Intent intent, Campaign campaign) {
+      WritableMap params = Arguments.createMap();
+      params.putMap("campaign", LLLocalyticsModule.toWritableMap(campaign));
+      eventEmitter.emit("localyticsShouldDeeplinkToSettings", params);
+      return true;
+    }
+
 }

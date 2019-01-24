@@ -1,6 +1,6 @@
-
 package com.localytics.react.android;
 
+import android.app.Activity;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Build;
@@ -24,6 +24,7 @@ import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 
+import com.facebook.react.uimanager.annotations.ReactProp;
 import com.localytics.android.CircularRegion;
 import com.localytics.android.Customer;
 import com.localytics.android.Campaign;
@@ -35,8 +36,6 @@ import com.localytics.android.PlacesCampaign;
 import com.localytics.android.PushCampaign;
 import com.localytics.android.Region;
 
-import org.w3c.dom.Text;
-
 import java.lang.Runnable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,12 +45,13 @@ import java.util.Map;
 public class LLLocalyticsModule extends ReactContextBaseJavaModule {
 
   private final ReactApplicationContext reactContext;
-  private final Handler backgroundHandler;
+  private final Handler resolveHandler;
+  private final Handler localyticsHandler;
 
-  private LongSparseArray<InboxCampaign> inboxCampaignCache = new LongSparseArray<InboxCampaign>();
-  private final LongSparseArray<InAppCampaign> inAppCampaignCache = new LongSparseArray<InAppCampaign>();
-  private final LongSparseArray<PushCampaign> pushCampaignCache = new LongSparseArray<PushCampaign>();
-  private final LongSparseArray<PlacesCampaign> placesCampaignCache = new LongSparseArray<PlacesCampaign>();
+  private LongSparseArray<InboxCampaign> inboxCampaignCache = new LongSparseArray<>();
+  private final LongSparseArray<InAppCampaign> inAppCampaignCache = new LongSparseArray<>();
+  private final LongSparseArray<PushCampaign> pushCampaignCache = new LongSparseArray<>();
+  private final LongSparseArray<PlacesCampaign> placesCampaignCache = new LongSparseArray<>();
 
   private LLAnalyticsListener analyticsListener;
   private LLLocationListener locationListener;
@@ -61,9 +61,16 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
   public LLLocalyticsModule(ReactApplicationContext reactContext) {
     super(reactContext);
     this.reactContext = reactContext;
-    HandlerThread thread = new HandlerThread("LLLocalyticsModule-Handler", android.os.Process.THREAD_PRIORITY_BACKGROUND);
-    thread.start();
-    backgroundHandler = new Handler(thread.getLooper());
+    HandlerThread resolutionThread = new HandlerThread("LLLocalyticsModule-Resolution-Handler", android.os.Process.THREAD_PRIORITY_BACKGROUND);
+    resolutionThread.start();
+    resolveHandler = new Handler(resolutionThread.getLooper());
+    HandlerThread localyticsThread = new HandlerThread("LLLocalyticsModule-Background-Handler", android.os.Process.THREAD_PRIORITY_BACKGROUND);
+    localyticsThread.start();
+    localyticsHandler = new Handler(localyticsThread.getLooper());
+  }
+
+  public Activity getActivity() {
+    return super.getCurrentActivity();
   }
 
   @Override
@@ -77,22 +84,43 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void upload() {
-    Localytics.upload();
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.upload();
+      }
+    });
   }
 
   @ReactMethod
   public void openSession() {
-    Localytics.openSession();
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.openSession();
+      }
+    });
   }
 
   @ReactMethod
   public void closeSession() {
-    Localytics.closeSession();
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.closeSession();
+      }
+    });
+
   }
 
   @ReactMethod
-  public void pauseDataUploading(Boolean paused) {
-    Localytics.pauseDataUploading(paused);
+  public void pauseDataUploading(final Boolean paused) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.pauseDataUploading(paused);
+      }
+    });
   }
 
   /************************************
@@ -100,261 +128,400 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
    ************************************/
 
   @ReactMethod
-  public void setOptedOut(Boolean optedOut) {
-    Localytics.setOptedOut(optedOut);
+  public void setOptedOut(final Boolean optedOut) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setOptedOut(optedOut);
+      }
+    });
   }
 
   @ReactMethod
   public void isOptedOut(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.isOptedOut());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.isOptedOut());
+          }
+        });
       }
     });
+
   }
 
   @ReactMethod
-  public void setPrivacyOptedOut(Boolean optedOut) {
-    Localytics.setPrivacyOptedOut(optedOut);
+  public void setPrivacyOptedOut(final Boolean optedOut) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setPrivacyOptedOut(optedOut);
+      }
+    });
   }
 
   @ReactMethod
   public void isPrivacyOptedOut(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.isPrivacyOptedOut());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.isPrivacyOptedOut());
+          }
+        });
       }
     });
   }
 
   @ReactMethod
-  public void tagEvent(ReadableMap params) {
-    String name = getString(params, "name");
-    if (!TextUtils.isEmpty(name)) {
-      int clv = getInt(params, "customerValueIncrease");
-      Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-      Localytics.tagEvent(name, attributes, clv);
-    } else {
+  public void tagEvent(final ReadableMap params) {
+    final String name = getString(params, "name");
+    if (TextUtils.isEmpty(name)) {
       logNullParameterError("tagEvent", "name", name);
+      return;
     }
-  }
+    final int clv = getInt(params, "customerValueIncrease");
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
 
-  @ReactMethod
-  public void tagPurchased(ReadableMap params) {
-    String itemName = getString(params, "itemName");
-    String itemId = getString(params, "itemId");
-    String itemType = getString(params, "itemType");
-    Long itemPrice = getLong(params, "itemPrice");
-
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagPurchased(itemName, itemId, itemType, itemPrice, attributes);
-  }
-
-  @ReactMethod
-  public void tagAddedToCart(ReadableMap params) {
-    String itemName = getString(params, "itemName");
-    String itemId = getString(params, "itemId");
-    String itemType = getString(params, "itemType");
-    Long itemPrice = getLong(params, "itemPrice");
-
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagAddedToCart(itemName, itemId, itemType, itemPrice, attributes);
-  }
-
-  @ReactMethod
-  public void tagStartedCheckout(ReadableMap params) {
-    Long totalPrice = getLong(params, "totalPrice");
-    Long itemCount = getLong(params, "itemCount");
-
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagStartedCheckout(totalPrice, itemCount, attributes);
-  }
-
-  @ReactMethod
-  public void tagCompletedCheckout(ReadableMap params) {
-    Long totalPrice = getLong(params, "totalPrice");
-    Long itemCount = getLong(params, "itemCount");
-
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagCompletedCheckout(totalPrice, itemCount, attributes);
-  }
-
-  @ReactMethod
-  public void tagContentViewed(ReadableMap params) {
-    String contentName = getString(params, "contentName");
-    String contentId = getString(params, "contentId");
-    String contentType = getString(params, "contentType");
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagContentViewed(contentName, contentId, contentType, attributes);
-  }
-
-  @ReactMethod
-  public void tagSearched(ReadableMap params) {
-    String queryText = getString(params, "queryText");
-    String contentType = getString(params, "contentType");
-    Long resultCount = getLong(params, "resultCount");
-
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagSearched(queryText, contentType, resultCount, attributes);
-  }
-
-  @ReactMethod
-  public void tagShared(ReadableMap params) {
-    String contentName = getString(params, "contentName");
-    String contentId = getString(params, "contentId");
-    String contentType = getString(params, "contentType");
-    String methodName = getString(params, "methodName");
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagShared(contentName, contentId, contentType, methodName, attributes);
-  }
-
-  @ReactMethod
-  public void tagContentRated(ReadableMap params) {
-    String contentName = getString(params, "contentName");
-    String contentId = getString(params, "contentId");
-    String contentType = getString(params, "contentType");
-    Long rating = getLong(params, "rating");
-
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagContentRated(contentName, contentId, contentType, rating, attributes);
-  }
-
-  @ReactMethod
-  public void tagCustomerRegistered(ReadableMap params) {
-    Customer customer = null;
-    if (params.hasKey("customer")) {
-      customer = toCustomer(params.getMap("customer"));
-    }
-    String methodName = getString(params, "methodName");
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagCustomerRegistered(customer, methodName, attributes);
-  }
-
-  @ReactMethod
-  public void tagCustomerLoggedIn(ReadableMap params) {
-    Customer customer = null;
-    if (params.hasKey("customer")) {
-      customer = toCustomer(params.getMap("customer"));
-    }
-    String methodName = getString(params, "methodName");
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagCustomerLoggedIn(customer, methodName, attributes);
-  }
-
-  @ReactMethod
-  public void tagCustomerLoggedOut(ReadableMap attributes) {
-    Localytics.tagCustomerLoggedOut(toStringMap(attributes));
-  }
-
-  @ReactMethod
-  public void tagInvited(ReadableMap params) {
-    String methodName = getString(params, "methodName");
-    Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-    Localytics.tagInvited(methodName, attributes);
-  }
-
-  @ReactMethod
-  public void tagInboxImpression(ReadableMap params) {
-    long campaignId = getLong(params, "campaignId");
-    InboxCampaign campaign = inboxCampaignCache.get(campaignId);
-    if (campaign != null) {
-      String action = getString(params, "action");
-      if ("click".equalsIgnoreCase(action)) {
-        Localytics.tagInboxImpression(campaign, Localytics.ImpressionType.CLICK);
-      } else if ("dismiss".equalsIgnoreCase(action)) {
-        Localytics.tagInboxImpression(campaign, Localytics.ImpressionType.DISMISS);
-      } else if (!TextUtils.isEmpty(action)) {
-        Localytics.tagInboxImpression(campaign, action);
-      } else {
-        logNullParameterError("tagInboxImpression", "action", action);
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagEvent(name, attributes, clv);
       }
-    } else {
-      logInvalidParameterError("tagInboxImpression", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
-    }
+    });
   }
 
   @ReactMethod
-  public void tagPushToInboxImpression(ReadableMap params) {
-    long campaignId = getLong(params, "campaignId");
-    InboxCampaign campaign = inboxCampaignCache.get(campaignId);
-    if (campaign != null) {
-      Localytics.tagPushToInboxImpression(campaign);
-    } else {
-      logInvalidParameterError("tagPushToInboxImpression", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
-    }
-  }
+  public void tagPurchased(final ReadableMap params) {
+    final String itemName = getString(params, "itemName");
+    final String itemId = getString(params, "itemId");
+    final String itemType = getString(params, "itemType");
+    final Long itemPrice = getLong(params, "itemPrice");
 
-  @ReactMethod
-  public void tagInAppImpression(ReadableMap params) {
-    long campaignId = getLong(params, "campaignId");
-    InAppCampaign campaign = inAppCampaignCache.get(campaignId);
-    if (campaign != null) {
-      String action = getString(params, "action");
-      if ("click".equalsIgnoreCase(action)) {
-        Localytics.tagInAppImpression(campaign, Localytics.ImpressionType.CLICK);
-      } else if ("dismiss".equalsIgnoreCase(action)) {
-        Localytics.tagInAppImpression(campaign, Localytics.ImpressionType.DISMISS);
-      } else if (!TextUtils.isEmpty((action))) {
-        Localytics.tagInAppImpression(campaign, action);
-      } else {
-        logNullParameterError("tagInAppImpression", "action", action);
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagPurchased(itemName, itemId, itemType, itemPrice, attributes);
       }
-    } else {
-      logInvalidParameterError("tagInAppImpression", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
-    }
+    });
   }
 
   @ReactMethod
-  public void tagPlacesPushReceived(long campaignId) {
-    PlacesCampaign campaign = placesCampaignCache.get(campaignId);
-    if (campaign != null) {
-      Localytics.tagPlacesPushReceived(campaign);
-    } else {
-      logInvalidParameterError("tagPlacesPushReceived", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
-    }
+  public void tagAddedToCart(final ReadableMap params) {
+    final String itemName = getString(params, "itemName");
+    final String itemId = getString(params, "itemId");
+    final String itemType = getString(params, "itemType");
+    final Long itemPrice = getLong(params, "itemPrice");
+
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagAddedToCart(itemName, itemId, itemType, itemPrice, attributes);
+      }
+    });
   }
 
   @ReactMethod
-  public void tagPlacesPushOpened(ReadableMap params) {
-    long campaignId = getLong(params, "campaignId");
-    PlacesCampaign campaign = placesCampaignCache.get(campaignId);
-    if (campaign != null) {
-      String action = getString(params, "action");
-      Localytics.tagPlacesPushOpened(campaign, action);
-    } else {
-      logInvalidParameterError("tagPlacesPushOpened", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
-    }
+  public void tagStartedCheckout(final ReadableMap params) {
+    final Long totalPrice = getLong(params, "totalPrice");
+    final Long itemCount = getLong(params, "itemCount");
+
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagStartedCheckout(totalPrice, itemCount, attributes);
+      }
+    });
   }
 
   @ReactMethod
-  public void tagScreen(String screen) {
-    if (!TextUtils.isEmpty(screen)) {
-      Localytics.tagScreen(screen);
-    } else {
+  public void tagCompletedCheckout(final ReadableMap params) {
+    final Long totalPrice = getLong(params, "totalPrice");
+    final Long itemCount = getLong(params, "itemCount");
+
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagCompletedCheckout(totalPrice, itemCount, attributes);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void tagContentViewed(final ReadableMap params) {
+    final String contentName = getString(params, "contentName");
+    final String contentId = getString(params, "contentId");
+    final String contentType = getString(params, "contentType");
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagContentViewed(contentName, contentId, contentType, attributes);      }
+    });
+  }
+
+  @ReactMethod
+  public void tagSearched(final ReadableMap params) {
+    final String queryText = getString(params, "queryText");
+    final String contentType = getString(params, "contentType");
+    final Long resultCount = getLong(params, "resultCount");
+
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagSearched(queryText, contentType, resultCount, attributes);      }
+    });
+  }
+
+  @ReactMethod
+  public void tagShared(final ReadableMap params) {
+    final String contentName = getString(params, "contentName");
+    final String contentId = getString(params, "contentId");
+    final String contentType = getString(params, "contentType");
+    final String methodName = getString(params, "methodName");
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagShared(contentName, contentId, contentType, methodName, attributes);      }
+    });
+  }
+
+  @ReactMethod
+  public void tagContentRated(final ReadableMap params) {
+    final String contentName = getString(params, "contentName");
+    final String contentId = getString(params, "contentId");
+    final String contentType = getString(params, "contentType");
+    final Long rating = getLong(params, "rating");
+
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagContentRated(contentName, contentId, contentType, rating, attributes);
+      }
+    });
+
+  }
+
+  @ReactMethod
+  public void tagCustomerRegistered(final ReadableMap params) {
+    final Customer customer = params.hasKey("customer") ? toCustomer(params.getMap("customer")) : null;
+
+    final String methodName = getString(params, "methodName");
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagCustomerRegistered(customer, methodName, attributes);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void tagCustomerLoggedIn(final ReadableMap params) {
+    final Customer customer = params.hasKey("customer") ? toCustomer(params.getMap("customer")) : null;
+    final String methodName = getString(params, "methodName");
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagCustomerLoggedIn(customer, methodName, attributes);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void tagCustomerLoggedOut(final ReadableMap attributes) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagCustomerLoggedOut(toStringMap(attributes));
+      }
+    });
+
+  }
+
+  @ReactMethod
+  public void tagInvited(final ReadableMap params) {
+    final String methodName = getString(params, "methodName");
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagInvited(methodName, attributes);
+      }
+    });
+
+  }
+
+  @ReactMethod
+  public void tagInboxImpression(final ReadableMap params) {
+    final String action = getString(params, "action");
+    final long campaignId = getLong(params, "campaignId");
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        InboxCampaign campaign = inboxCampaignCache.get(campaignId);
+        if (campaign != null) {
+          if ("click".equalsIgnoreCase(action)) {
+            Localytics.tagInboxImpression(campaign, Localytics.ImpressionType.CLICK);
+          } else if ("dismiss".equalsIgnoreCase(action)) {
+            Localytics.tagInboxImpression(campaign, Localytics.ImpressionType.DISMISS);
+          } else if (!TextUtils.isEmpty(action)) {
+            Localytics.tagInboxImpression(campaign, action);
+          } else {
+            logNullParameterError("tagInboxImpression", "action", action);
+          }
+        } else {
+          logInvalidParameterError("tagInboxImpression", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+        }
+      }
+    });
+  }
+
+  @ReactMethod
+  public void inboxListItemTapped(final ReadableMap params) {
+    final long campaignId = getLong(params, "campaignId");
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        InboxCampaign campaign = inboxCampaignCache.get(campaignId);
+        if (campaign != null) {
+          Localytics.inboxListItemTapped(campaign);
+        } else {
+          logInvalidParameterError("inboxListItemTapped", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+        }
+      }
+    });
+  }
+
+  @ReactMethod
+  public void tagPushToInboxImpression(final ReadableMap params) {
+    final long campaignId = getLong(params, "campaignId");
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        InboxCampaign campaign = inboxCampaignCache.get(campaignId);
+        if (campaign != null) {
+          Localytics.tagPushToInboxImpression(campaign);
+        } else {
+          logInvalidParameterError("tagPushToInboxImpression", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+        }
+      }
+    });
+  }
+
+  @ReactMethod
+  public void tagInAppImpression(final ReadableMap params) {
+    final long campaignId = getLong(params, "campaignId");
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        InAppCampaign campaign = inAppCampaignCache.get(campaignId);
+        if (campaign != null) {
+          String action = getString(params, "action");
+          if ("click".equalsIgnoreCase(action)) {
+            Localytics.tagInAppImpression(campaign, Localytics.ImpressionType.CLICK);
+          } else if ("dismiss".equalsIgnoreCase(action)) {
+            Localytics.tagInAppImpression(campaign, Localytics.ImpressionType.DISMISS);
+          } else if (!TextUtils.isEmpty((action))) {
+            Localytics.tagInAppImpression(campaign, action);
+          } else {
+            logNullParameterError("tagInAppImpression", "action", action);
+          }
+        } else {
+          logInvalidParameterError("tagInAppImpression", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+        }
+      }
+    });
+  }
+
+  @ReactMethod
+  public void tagPlacesPushReceived(final long campaignId) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        PlacesCampaign campaign = placesCampaignCache.get(campaignId);
+        if (campaign != null) {
+          Localytics.tagPlacesPushReceived(campaign);
+        } else {
+          logInvalidParameterError("tagPlacesPushReceived", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));		
+        }
+      }
+    });
+  }
+
+  @ReactMethod
+  public void tagPlacesPushOpened(final ReadableMap params) {
+    final long campaignId = getLong(params, "campaignId");
+    final String action = getString(params, "action");
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        PlacesCampaign campaign = placesCampaignCache.get(campaignId);
+        if (campaign != null) {
+          Localytics.tagPlacesPushOpened(campaign, action);
+        } else {
+          logInvalidParameterError("tagPlacesPushOpened", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+        }
+      }
+    });
+  }
+
+  @ReactMethod
+  public void tagScreen(final String screen) {
+    if (TextUtils.isEmpty(screen)) {
       logInvalidParameterError("tagScreen", "screen", "Parameter screen can not be empty", screen);
+      return;
     }
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.tagScreen(screen);
+      }
+    });
   }
 
   @ReactMethod
-  public void setCustomDimension(ReadableMap params) {
-      int dimension = getCustomDimensionIndex(params, "dimension");
-      if (0 <= dimension && dimension <= 19) {
-        String value = getString(params, "value");
-        Localytics.setCustomDimension(dimension, value);
-      } else {
-        logInvalidParameterError("setCustomDimension", "dimension", "Custom dimension index must be between 0 and 19", Integer.toString(dimension));
-      }
+  public void setCustomDimension(final ReadableMap params) {
+    final int dimension = getCustomDimensionIndex(params, "dimension");
+    final String value = getString(params, "value");
+    if (0 <= dimension && dimension <= 19) {
+      localyticsHandler.post(new Runnable() {
+        @Override
+        public void run() {
+          Localytics.setCustomDimension(dimension, value);
+        }
+      });
+    } else {
+      logInvalidParameterError("setCustomDimension", "dimension", "Custom dimension index must be between 0 and 19", Integer.toString(dimension));
+    }
+
   }
 
   @ReactMethod
   public void getCustomDimension(final int dimension, final Promise promise) {
     if (0 <= dimension && dimension <= 19) {
-      backgroundHandler.post(new Runnable() {
+      localyticsHandler.post(new Runnable() {
         @Override
         public void run() {
-          promise.resolve(Localytics.getCustomDimension(dimension));
+          resolveHandler.post(new Runnable() {
+            @Override
+            public void run() {
+              promise.resolve(Localytics.getCustomDimension(dimension));
+            }
+          });
         }
       });
     } else {
@@ -363,15 +530,20 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void setAnalyticsEventsEnabled(Boolean enabled) {
-    if (enabled) {
-      if (analyticsListener == null) {
-        analyticsListener = new LLAnalyticsListener(reactContext);
+  public void setAnalyticsEventsEnabled(final Boolean enabled) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        if (enabled) {
+          if (analyticsListener == null) {
+            analyticsListener = new LLAnalyticsListener(reactContext);
+          }
+          Localytics.setAnalyticsListener(analyticsListener);
+        } else {
+          Localytics.setAnalyticsListener(null);
+        }
       }
-      Localytics.setAnalyticsListener(analyticsListener);
-    } else {
-      Localytics.setAnalyticsListener(null);
-    }
+    });
   }
 
   /************************************
@@ -379,94 +551,114 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
    ************************************/
 
   @ReactMethod
-  public void setProfileAttribute(ReadableMap params) {
-    String name = getString(params, "name");
-    Dynamic value = getDynamic(params, "value");
+  public void setProfileAttribute(final ReadableMap params) {
+    final String name = getString(params, "name");
+    final Dynamic value = getDynamic(params, "value");
+    final String scope = getString(params, "scope");
     if (!TextUtils.isEmpty(name) && value != null) {
-      String scope = getString(params, "scope");
-      switch(value.getType()) {
-        case String:
-          // Dates will be passed in as "YYYY-MM-DD"
-          Localytics.setProfileAttribute(name, value.asString(), toScope(scope));
-          break;
-        case Number:
-          Localytics.setProfileAttribute(name, (long) value.asInt(), toScope(scope));
-          break;
-        case Array:
-          ReadableArray array = value.asArray();
-          if (array.size() > 0) {
-            for (int i = 0; i < array.size(); i++) { // for-each loop not available with ReadableArray
-              ReadableType type = array.getType(i);
-              if (!ReadableType.Number.equals(type)) { // default to String
-                Localytics.setProfileAttribute(name, toStringArray(array), toScope(scope));
-                return;
+      localyticsHandler.post(new Runnable() {
+        @Override
+        public void run() {
+          switch(value.getType()) {
+            case String:
+              // Dates will be passed in as "YYYY-MM-DD"
+              Localytics.setProfileAttribute(name, value.asString(), toScope(scope));
+              break;
+            case Number:
+              Localytics.setProfileAttribute(name, (long) value.asInt(), toScope(scope));
+              break;
+            case Array:
+              ReadableArray array = value.asArray();
+              if (array.size() > 0) {
+                for (int i = 0; i < array.size(); i++) { // for-each loop not available with ReadableArray
+                  ReadableType type = array.getType(i);
+                  if (!ReadableType.Number.equals(type)) { // default to String
+                    Localytics.setProfileAttribute(name, toStringArray(array), toScope(scope));
+                    return;
+                  }
+                }
+                Localytics.setProfileAttribute(name, toLongArray(array), toScope(scope));
+              } else {
+                logNullParameterError("setProfileAttribute", "value", array.toString());
               }
-            }
-            Localytics.setProfileAttribute(name, toLongArray(array), toScope(scope));
-          } else {
-            logNullParameterError("setProfileAttribute", "value", array.toString());
+              break;
           }
-          break;
-       }
+        }
+      });
     } else {
       logNullParameterError("setProfileAttribute", "name, value", String.format("name: %s, value: %s", name, value));
     }
    }
 
   @ReactMethod
-  public void addProfileAttributesToSet(ReadableMap params) {
-    String name = getString(params, "name");
-    ReadableArray values = getReadableArray(params, "values");
+  public void addProfileAttributesToSet(final ReadableMap params) {
+    final String name = getString(params, "name");
+    final ReadableArray values = getReadableArray(params, "values");
+    final String scope = getString(params, "scope");
     if (!TextUtils.isEmpty(name) && values != null) {
-      String scope = getString(params, "scope");
-      if (values.size() > 0) {
-        for (int i = 0; i < values.size(); i++) { // for-each loop not available with ReadableArray
-          ReadableType type = values.getType(i);
-          if (!ReadableType.Number.equals(type)) { // default to String
-            Localytics.setProfileAttribute(name, toStringArray(values), toScope(scope));
-            return;
+      localyticsHandler.post(new Runnable() {
+        @Override
+        public void run() {
+          if (values.size() > 0) {
+            for (int i = 0; i < values.size(); i++) { // for-each loop not available with ReadableArray
+              ReadableType type = values.getType(i);
+              if (!ReadableType.Number.equals(type)) { // default to String
+                Localytics.setProfileAttribute(name, toStringArray(values), toScope(scope));
+                return;
+              }
+            }
+            Localytics.setProfileAttribute(name, toLongArray(values), toScope(scope));
+          } else {
+            logNullParameterError("addProfileAttributesToSet", "values", values.toString());
           }
         }
-        Localytics.setProfileAttribute(name, toLongArray(values), toScope(scope));
-      } else {
-        logNullParameterError("addProfileAttributesToSet", "values", values.toString());
-      }
+      });
     } else {
       logNullParameterError("addProfileAttributesToSet", "name, values", String.format("name: %s, values: %s", name, values));
     }
   }
 
   @ReactMethod
-  public void removeProfileAttributesFromSet(ReadableMap params) {
-    String name = getString(params, "name");
-    ReadableArray values = getReadableArray(params, "values");
+  public void removeProfileAttributesFromSet(final ReadableMap params) {
+    final String name = getString(params, "name");
+    final ReadableArray values = getReadableArray(params, "values");
+    final String scope = getString(params, "scope");
     if (!TextUtils.isEmpty(name) && values != null) {
-      String scope = getString(params, "scope");
-      if (values.size() > 0) {
-        for (int i = 0; i < values.size(); i++) { // for-each loop not available with ReadableArray
-          ReadableType type = values.getType(i);
-          if (!ReadableType.Number.equals(type)) { // default to String
-            Localytics.removeProfileAttributesFromSet(name, toStringArray(values), toScope(scope));
-            return;
+      localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+          if (values.size() > 0) {
+            for (int i = 0; i < values.size(); i++) { // for-each loop not available with ReadableArray
+              ReadableType type = values.getType(i);
+              if (!ReadableType.Number.equals(type)) { // default to String
+                Localytics.removeProfileAttributesFromSet(name, toStringArray(values), toScope(scope));
+                return;
+              }
+            }
+            Localytics.removeProfileAttributesFromSet(name, toLongArray(values), toScope(scope));
+          } else {
+            logNullParameterError("removeProfileAttributesFromSet", "values", values.toString());
           }
         }
-        Localytics.removeProfileAttributesFromSet(name, toLongArray(values), toScope(scope));
-      } else {
-        logNullParameterError("removeProfileAttributesFromSet", "values", values.toString());
-      }
+      });
     } else {
       logNullParameterError("removeProfileAttributesFromSet", "name, values", String.format("name: %s, values: %s", name, values));
     }
   }
 
   @ReactMethod
-  public void incrementProfileAttribute(ReadableMap params) {
-    String name = getString(params, "name");
+  public void incrementProfileAttribute(final ReadableMap params) {
+    final String name = getString(params, "name");
+    final int value = getInt(params, "value");
+    final String scope = getString(params, "scope");
     if (!TextUtils.isEmpty(name)) {
-      int value = getInt(params, "value");
       if (value != 0) {
-        String scope = getString(params, "scope");
-        Localytics.incrementProfileAttribute(name, value, toScope(scope));
+          localyticsHandler.post(new Runnable() {
+            @Override
+            public void run() {
+              Localytics.incrementProfileAttribute(name, value, toScope(scope));
+            }
+          });
       } else {
         logInvalidParameterError("incrementProfileAttribute", "value", "Attempting to increment by 0", Integer.toString(value));
       }
@@ -476,13 +668,18 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void decrementProfileAttribute(ReadableMap params) {
-    String name = getString(params, "name");
+  public void decrementProfileAttribute(final ReadableMap params) {
+    final String name = getString(params, "name");
+    final int value = getInt(params, "value");
+    final String scope = getString(params, "scope");
     if (!TextUtils.isEmpty(name)) {
-      int value = getInt(params, "value");
       if (value != 0) {
-        String scope = getString(params, "scope");
-        Localytics.decrementProfileAttribute(name, value, toScope(scope));
+        localyticsHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            Localytics.decrementProfileAttribute(name, value, toScope(scope));
+          }
+        });
       } else {
         logInvalidParameterError("decrementProfileAttribute", "value", "Attempting to decrement by 0", Integer.toString(value));
       }
@@ -492,34 +689,59 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void deleteProfileAttribute(ReadableMap params) {
-    String name = getString(params, "name");
+  public void deleteProfileAttribute(final ReadableMap params) {
+    final String name = getString(params, "name");
+    final String scope = getString(params, "scope");
     if (!TextUtils.isEmpty(name)) {
-      String scope = getString(params, "scope");
-      Localytics.deleteProfileAttribute(name, toScope(scope));
+      localyticsHandler.post(new Runnable() {
+        @Override
+        public void run() {
+          Localytics.deleteProfileAttribute(name, toScope(scope));
+        }
+      });
     } else {
       logNullParameterError("deleteProfileAttribute", "name", name);
     }
   }
 
   @ReactMethod
-  public void setCustomerEmail(String email) {
-    Localytics.setCustomerEmail(email);
+  public void setCustomerEmail(final String email) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setCustomerEmail(email);
+      }
+    });
   }
 
   @ReactMethod
-  public void setCustomerFirstName(String firstName) {
-    Localytics.setCustomerFirstName(firstName);
+  public void setCustomerFirstName(final String firstName) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setCustomerFirstName(firstName);
+      }
+    });
   }
 
   @ReactMethod
-  public void setCustomerLastName(String lastName) {
-    Localytics.setCustomerLastName(lastName);
+  public void setCustomerLastName(final String lastName) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setCustomerLastName(lastName);
+      }
+    });
   }
 
   @ReactMethod
-  public void setCustomerFullName(String fullName) {
-    Localytics.setCustomerFullName(fullName);
+  public void setCustomerFullName(final String fullName) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setCustomerFullName(fullName);
+      }
+    });
   }
 
   /************************************
@@ -527,15 +749,20 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
    ************************************/
 
   @ReactMethod
-  public void triggerInAppMessage(ReadableMap params) {
-    String triggerName = getString(params, "triggerName");
+  public void triggerInAppMessage(final ReadableMap params) {
+    final String triggerName = getString(params, "triggerName");
+    final Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
     if (!TextUtils.isEmpty(triggerName)) {
-      Map<String, String> attributes = toStringMap(getReadableMap(params, "attributes"));
-      if (attributes != null) {
-        Localytics.triggerInAppMessage(triggerName, attributes);
-      } else {
-        Localytics.triggerInAppMessage(triggerName);
-      }
+      localyticsHandler.post(new Runnable() {
+        @Override
+        public void run() {
+          if (attributes != null) {
+            Localytics.triggerInAppMessage(triggerName, attributes);
+          } else {
+            Localytics.triggerInAppMessage(triggerName);
+          }
+        }
+      });
     } else {
       logNullParameterError("triggerInAppMessage", "triggerName", triggerName);
     }
@@ -543,262 +770,407 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void triggerInAppMessagesForSessionStart() {
-    Localytics.triggerInAppMessagesForSessionStart();
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.triggerInAppMessagesForSessionStart();
+      }
+    });
+
   }
 
   @ReactMethod
   public void dismissCurrentInAppMessage() {
-    Localytics.dismissCurrentInAppMessage();
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.dismissCurrentInAppMessage();
+      }
+    });
+
   }
 
   @ReactMethod
-  public void setInAppMessageDismissButtonLocation(String location) {
-    Localytics.setInAppMessageDismissButtonLocation(toDismissButtonLocation(location));
+  public void setInAppMessageDismissButtonLocation(final String location) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setInAppMessageDismissButtonLocation(toDismissButtonLocation(location));
+      }
+    });
   }
 
   @ReactMethod
-  public void getInAppMessageDismissButtonLocation(Promise promise) {
-    Localytics.InAppMessageDismissButtonLocation location = Localytics.getInAppMessageDismissButtonLocation();
-    if (Localytics.InAppMessageDismissButtonLocation.RIGHT.equals(location)) {
-      promise.resolve("right");
-    } else {
-      promise.resolve("left");
-    }
+  public void getInAppMessageDismissButtonLocation(final Promise promise) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        final Localytics.InAppMessageDismissButtonLocation location = Localytics.getInAppMessageDismissButtonLocation();
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            if (Localytics.InAppMessageDismissButtonLocation.RIGHT.equals(location)) {
+              promise.resolve("right");
+            } else {
+              promise.resolve("left");
+            }
+          }
+        });
+      }
+    });
+
   }
 
   @ReactMethod
-  public void setInAppMessageDismissButtonHidden(Boolean hidden) {
-    Localytics.setInAppMessageDismissButtonVisibility(hidden ? View.GONE : View.VISIBLE);
+  public void setInAppMessageDismissButtonHidden(final Boolean hidden) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setInAppMessageDismissButtonVisibility(hidden ? View.GONE : View.VISIBLE);
+      }
+    });
   }
 
   @ReactMethod
-  public void setInAppMessageConfiguration(ReadableMap config) {
-    getMessagingListener(true).setInAppConfigurationMap(config);
+  public void setInAppMessageConfiguration(final ReadableMap config) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        getMessagingListener(true).setInAppConfigurationMap(config);
+      }
+    });
   }
 
   @ReactMethod
-  public void appendAdidToInAppUrls(Boolean append) {
-    Localytics.appendAdidToInAppUrls(append);
+  public void appendAdidToInAppUrls(final Boolean append) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.appendAdidToInAppUrls(append);
+      }
+    });
+
   }
 
   @ReactMethod void isAdidAppendedToInAppUrls(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.isAdidAppendedToInAppUrls());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.isAdidAppendedToInAppUrls());
+          }
+        });
       }
     });
   }
 
   @ReactMethod
   public void registerPush() {
-    Localytics.registerPush();
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.registerPush();
+      }
+    });
+
   }
 
   @ReactMethod
-  public void setPushRegistrationId(String registrationId) {
-    Localytics.setPushRegistrationId(registrationId);
+  public void setPushRegistrationId(final String registrationId) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setPushRegistrationId(registrationId);
+      }
+    });
   }
 
   @ReactMethod
   public void getPushRegistrationId(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.getPushRegistrationId());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.getPushRegistrationId());
+          }
+        });
       }
     });
   }
 
   @ReactMethod
-  public void setNotificationsDisabled(Boolean disabled) {
-    Localytics.setNotificationsDisabled(disabled);
+  public void setNotificationsDisabled(final Boolean disabled) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setNotificationsDisabled(disabled);
+      }
+    });
   }
 
   @ReactMethod
   public void areNotificationsDisabled(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.areNotificationsDisabled());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.areNotificationsDisabled());
+          }
+        });
       }
     });
   }
 
   @ReactMethod
-  public void setPushMessageConfiguration(ReadableMap config) {
-    // Enable messaging events first
-    getMessagingListener(true).setPushConfigurationMap(config);
+  public void setPushMessageConfiguration(final ReadableMap config) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        // Enable messaging events first
+        getMessagingListener(true).setPushConfigurationMap(config);
+      }
+    });
   }
 
   @ReactMethod
   public void getInboxCampaigns(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        List<InboxCampaign> campaigns = Localytics.getInboxCampaigns();
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            List<InboxCampaign> campaigns = Localytics.getInboxCampaigns();
 
-        // Cache campaigns
-        for (InboxCampaign campaign : campaigns) {
-          inboxCampaignCache.put(campaign.getCampaignId(), campaign);
-        }
+            // Cache campaigns
+            for (InboxCampaign campaign : campaigns) {
+              inboxCampaignCache.put(campaign.getCampaignId(), campaign);
+            }
 
-        promise.resolve(toInboxCampaignsWritableArray(campaigns));
+            promise.resolve(toInboxCampaignsWritableArray(campaigns));
+          }
+        });
       }
     });
   }
 
   @ReactMethod
   public void getDisplayableInboxCampaigns(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        List<InboxCampaign> campaigns = Localytics.getDisplayableInboxCampaigns();
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            List<InboxCampaign> campaigns = Localytics.getDisplayableInboxCampaigns();
 
-        // Cache campaigns
-        for (InboxCampaign campaign : campaigns) {
-          inboxCampaignCache.put(campaign.getCampaignId(), campaign);
-        }
+            // Cache campaigns
+            for (InboxCampaign campaign : campaigns) {
+              inboxCampaignCache.put(campaign.getCampaignId(), campaign);
+            }
 
-        promise.resolve(toInboxCampaignsWritableArray(campaigns));
+            promise.resolve(toInboxCampaignsWritableArray(campaigns));
+          }
+        });
       }
     });
   }
 
   @ReactMethod
   public void getAllInboxCampaigns(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        List<InboxCampaign> campaigns = Localytics.getAllInboxCampaigns();
-        LongSparseArray<InboxCampaign> cache = new LongSparseArray<InboxCampaign>();
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            List<InboxCampaign> campaigns = Localytics.getAllInboxCampaigns();
+            LongSparseArray<InboxCampaign> cache = new LongSparseArray<>();
 
-        // Cache campaigns
-        for (InboxCampaign campaign : campaigns) {
-          cache.put(campaign.getCampaignId(), campaign);
-        }
+            // Cache campaigns
+            for (InboxCampaign campaign : campaigns) {
+              cache.put(campaign.getCampaignId(), campaign);
+            }
 
-        //Set new inbox cache
-        inboxCampaignCache = cache;
-        promise.resolve(toInboxCampaignsWritableArray(campaigns));
+            //Set new inbox cache
+            inboxCampaignCache = cache;
+            promise.resolve(toInboxCampaignsWritableArray(campaigns));
+          }
+        });
       }
     });
   }
 
   @ReactMethod
   public void refreshInboxCampaigns(final Promise promise) {
-    Localytics.refreshInboxCampaigns(new InboxRefreshListener() {
+    localyticsHandler.post(new Runnable() {
       @Override
-      public void localyticsRefreshedInboxCampaigns(List<InboxCampaign> campaigns) {
-        // Cache campaigns
-        for (InboxCampaign campaign : campaigns) {
-          inboxCampaignCache.put(campaign.getCampaignId(), campaign);
-        }
+      public void run() {
+        Localytics.refreshInboxCampaigns(new InboxRefreshListener() {
+          @Override
+          public void localyticsRefreshedInboxCampaigns(List<InboxCampaign> campaigns) {
+            // Cache campaigns
+            for (InboxCampaign campaign : campaigns) {
+              inboxCampaignCache.put(campaign.getCampaignId(), campaign);
+            }
 
-        promise.resolve(toInboxCampaignsWritableArray(campaigns));
+            promise.resolve(toInboxCampaignsWritableArray(campaigns));
+          }
+        });
       }
     });
   }
 
   @ReactMethod
   public void refreshAllInboxCampaigns(final Promise promise) {
-    Localytics.refreshAllInboxCampaigns(new InboxRefreshListener() {
+    localyticsHandler.post(new Runnable() {
       @Override
-      public void localyticsRefreshedInboxCampaigns(List<InboxCampaign> campaigns) {
-        LongSparseArray<InboxCampaign> cache = new LongSparseArray<InboxCampaign>();
+      public void run() {
+        Localytics.refreshAllInboxCampaigns(new InboxRefreshListener() {
+          @Override
+          public void localyticsRefreshedInboxCampaigns(List<InboxCampaign> campaigns) {
+            LongSparseArray<InboxCampaign> cache = new LongSparseArray<>();
 
-        // Cache campaigns
-        for (InboxCampaign campaign : campaigns) {
-          cache.put(campaign.getCampaignId(), campaign);
-        }
+            // Cache campaigns
+            for (InboxCampaign campaign : campaigns) {
+              cache.put(campaign.getCampaignId(), campaign);
+            }
 
-        //Set new inbox cache
-        inboxCampaignCache = cache;
-        promise.resolve(toInboxCampaignsWritableArray(campaigns));
+            //Set new inbox cache
+            inboxCampaignCache = cache;
+            promise.resolve(toInboxCampaignsWritableArray(campaigns));
+          }
+        });
       }
     });
   }
 
   @ReactMethod
-  public void setInboxCampaignRead(ReadableMap params) {
-    long campaignId = getLong(params, "campaignId");
-    InboxCampaign campaign = inboxCampaignCache.get(campaignId);
-    if (campaign != null) {
-      boolean read = getBoolean(params, "read");
-      Localytics.setInboxCampaignRead(campaign, read);
-    } else {
-      logInvalidParameterError("setInboxCampaignRead", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
-    }
+  public void setInboxCampaignRead(final ReadableMap params) {
+    final long campaignId = getLong(params, "campaignId");
+    final boolean read = getBoolean(params, "read");
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        InboxCampaign campaign = inboxCampaignCache.get(campaignId);
+        if (campaign != null) {
+          Localytics.setInboxCampaignRead(campaign, read);
+        } else {
+          logInvalidParameterError("setInboxCampaignRead", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+        }
+      }
+    });
   }
 
   @ReactMethod
   public void deleteInboxCampaign(final Integer campaignId) {
-    InboxCampaign campaign = inboxCampaignCache.get(campaignId);
-    if (campaign != null) {
-      Localytics.deleteInboxCampaign(campaign);
-    } else {
-      logInvalidParameterError("deleteInboxCampaign", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
-    }
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        InboxCampaign campaign = inboxCampaignCache.get(campaignId);
+        if (campaign != null) {
+          Localytics.deleteInboxCampaign(campaign);
+        } else {
+          logInvalidParameterError("deleteInboxCampaign", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+        }
+      }
+    });
   }
 
   @ReactMethod
   public void getInboxCampaignsUnreadCount(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.getInboxCampaignsUnreadCount());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.getInboxCampaignsUnreadCount());
+          }
+        });
       }
     });
   }
 
   @ReactMethod
-  public void appendAdidToInboxUrls(Boolean append) {
-    Localytics.appendAdidToInboxUrls(append);
+  public void appendAdidToInboxUrls(final Boolean append) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.appendAdidToInboxUrls(append);
+      }
+    });
   }
 
   @ReactMethod void isAdidAppendedToInboxUrls(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.isAdidAppendedToInboxUrls());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.isAdidAppendedToInboxUrls());
+          }
+        });
       }
     });
   }
 
   @ReactMethod
-  public void triggerPlacesNotification(ReadableMap params) {
-    long campaignId = getLong(params, "campaignId");
-    String regionId = getString(params, "regionId");
-    if (TextUtils.isEmpty(regionId)) {
-      PlacesCampaign campaign = placesCampaignCache.get(campaignId);
-      if (campaign != null) {
-        Localytics.triggerPlacesNotification(campaign);
-      } else {
-        logInvalidParameterError("triggerPlacesNotification", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+  public void triggerPlacesNotification(final ReadableMap params) {
+    final long campaignId = getLong(params, "campaignId");
+    final String regionId = getString(params, "regionId");
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        if (TextUtils.isEmpty(regionId)) {
+          PlacesCampaign campaign = placesCampaignCache.get(campaignId);
+          if (campaign != null) {
+            Localytics.triggerPlacesNotification(campaign);
+          } else {
+            logInvalidParameterError("triggerPlacesNotification", "campaignId", "Unable to find campaign by id", Long.toString(campaignId));
+          }
+        } else {
+          Localytics.triggerPlacesNotification(campaignId, regionId);
+        }
       }
-    } else {
-      Localytics.triggerPlacesNotification(campaignId, regionId);
-    }
+    });
   }
 
   @ReactMethod
-  public void setPlacesMessageConfiguration(ReadableMap config) {
-    getMessagingListener(true).setPlacesConfigurationMap(config);
+  public void setPlacesMessageConfiguration(final ReadableMap config) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        getMessagingListener(true).setPlacesConfigurationMap(config);
+      }
+    });
   }
 
   @ReactMethod
-  public void setMessagingEventsEnabled(Boolean enabled) {
-    if (enabled) {
-      if (messagingListener == null) {
-        messagingListener = new LLMessagingListener(reactContext, inAppCampaignCache, pushCampaignCache, placesCampaignCache);
+  public void setMessagingEventsEnabled(final Boolean enabled) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        if (enabled) {
+          if (messagingListener == null) {
+            messagingListener = new LLMessagingListener(reactContext, inAppCampaignCache, pushCampaignCache, placesCampaignCache);
+          }
+          Localytics.setMessagingListener(messagingListener);
+        } else {
+          Localytics.setMessagingListener(null);
+        }
       }
-      Localytics.setMessagingListener(messagingListener);
-    } else {
-      Localytics.setMessagingListener(null);
-    }
+    });
   }
 
-  private LLMessagingListener getMessagingListener(boolean eventsEnabled) {
+  private LLMessagingListener getMessagingListener(final Boolean eventsEnabled) {
     if (messagingListener == null) {
       messagingListener = new LLMessagingListener(reactContext, inAppCampaignCache, pushCampaignCache, placesCampaignCache);
     }
@@ -816,86 +1188,125 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
    ************************************/
 
   @ReactMethod
-  public void setLocationMonitoringEnabled(Boolean enabled) {
-    Localytics.setLocationMonitoringEnabled(enabled);
+  public void setLocationMonitoringEnabled(final Boolean enabled) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setLocationMonitoringEnabled(enabled, false);
+      }
+    });
   }
 
   @ReactMethod
-  public void getGeofencesToMonitor(ReadableMap params, final Promise promise) {
+  public void persistLocationMonitoring(final Boolean persist) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setLocationMonitoringEnabled(true, persist);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void getGeofencesToMonitor(final ReadableMap params, final Promise promise) {
     final Double latitude = getLatitude(params, "latitude");
     final Double longitude = getLongitude(params, "longitude");
     if (latitude != null && longitude != null) {
-      backgroundHandler.post(new Runnable() {
+      localyticsHandler.post(new Runnable() {
         @Override
         public void run() {
-          List<CircularRegion> regions = Localytics.getGeofencesToMonitor(latitude, longitude);
-          promise.resolve(toCircularRegionsWritableArray(regions));
+          resolveHandler.post(new Runnable() {
+            @Override
+            public void run() {
+              List<CircularRegion> regions = Localytics.getGeofencesToMonitor(latitude, longitude);
+              promise.resolve(toCircularRegionsWritableArray(regions));
+            }
+          });
         }
       });
     } else {
       logInvalidParameterError("getGeofencesToMonitor", "latitude, longitude", "Invalid coordinates provided", String.format("latitude: %s, longitude: %s", latitude, longitude));
     }
-
   }
 
   @ReactMethod
-  public void triggerRegion(ReadableMap params) {
-    ReadableMap region = getReadableMap(params, "region");
-    String event = getString(params, "event");
+  public void triggerRegion(final ReadableMap params) {
+    final ReadableMap region = getReadableMap(params, "region");
+    final String event = getString(params, "event");
+
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        if (params.hasKey("location")) {
+          ReadableMap locationMap = getReadableMap(params, "location");
+          Location location = toLocation(locationMap);
+          if (location != null) {
+            Localytics.triggerRegion(toRegion(region), toEvent(event), location);
+            return;
+          } else {
+            logInvalidParameterError("triggerRegion (with location)", "location", "Invalid location was provided. triggerRegion was called with a null location", locationMap.toString());
+          }
+        }
+        Localytics.triggerRegion(toRegion(region), toEvent(event), null);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void triggerRegions(final ReadableMap params) {
+    final ReadableArray regions = getReadableArray(params, "regions");
+    final String event = getString(params, "event");
 
     if (params.hasKey("location")) {
-      ReadableMap locationMap = getReadableMap(params, "location");
-      Location location = toLocation(locationMap);
-      if (location != null) {
-        Localytics.triggerRegion(toRegion(region), toEvent(event), location);
-        return;
-      } else {
-        logInvalidParameterError("triggerRegion (with location)", "location", "Invalid location was provided. triggerRegion was called with a null location", locationMap.toString());
-      }
-    }
-    Localytics.triggerRegion(toRegion(region), toEvent(event), null);
-  }
-
-  @ReactMethod
-  public void triggerRegions(ReadableMap params) {
-    ReadableArray regions = getReadableArray(params, "regions");
-    String event = getString(params, "event");
-
-    if (params.hasKey("location")) {
-      ReadableMap locationMap = getReadableMap(params, "location");
-      Location location = toLocation(locationMap);
-      if (location != null) {
-        Localytics.triggerRegions(toRegions(regions), toEvent(event), location);
-        return;
-      } else {
-        logInvalidParameterError("triggerRegions (with location)", "location", "Invalid location was provided. triggerRegions was called with a null location", locationMap.toString());
-      }
-    }
-    Localytics.triggerRegions(toRegions(regions), toEvent(event), null);
-  }
-
-  @ReactMethod
-  public void setLocationEventsEnabled(Boolean enabled) {
-    if (enabled) {
-      if (locationListener == null) {
-        locationListener = new LLLocationListener(reactContext);
-      }
-      Localytics.setLocationListener(locationListener);
+      final ReadableMap locationMap = getReadableMap(params, "location");
+      final Location location = toLocation(locationMap);
+      localyticsHandler.post(new Runnable() {
+        @Override
+        public void run() {
+          if (location != null) {
+            Localytics.triggerRegions(toRegions(regions), toEvent(event), location);
+          } else {
+            logInvalidParameterError("triggerRegions (with location)", "location", "Invalid location was provided. triggerRegions was called with a null location", locationMap.toString());
+          }
+        }
+      });
     } else {
-      Localytics.setLocationListener(null);
+      Localytics.triggerRegions(toRegions(regions), toEvent(event), null);
     }
   }
 
   @ReactMethod
-  public void setCallToActionEventsEnabled(Boolean enabled) {
-    if (enabled) {
-      if (ctaListener == null) {
-        ctaListener = new LLCallToActionListener(reactContext);
+  public void setLocationEventsEnabled(final Boolean enabled) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        if (enabled) {
+          if (locationListener == null) {
+            locationListener = new LLLocationListener(reactContext);
+          }
+          Localytics.setLocationListener(locationListener);
+        } else {
+          Localytics.setLocationListener(null);
+        }
       }
-      Localytics.setCallToActionListener(ctaListener);
-    } else {
-      Localytics.setCallToActionListener(null);
-    }
+    });
+  }
+
+  @ReactMethod
+  public void setCallToActionEventsEnabled(final Boolean enabled) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        if (enabled) {
+          if (ctaListener == null) {
+            ctaListener = new LLCallToActionListener(reactContext);
+          }
+          Localytics.setCallToActionListener(ctaListener);
+        } else {
+          Localytics.setCallToActionListener(null);
+        }
+      }
+    });
   }
 
   /************************************
@@ -903,49 +1314,79 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
    ************************************/
 
   @ReactMethod
-  public void setIdentifier(ReadableMap params) {
-    String identifier = getString(params, "identifier");
+  public void setIdentifier(final ReadableMap params) {
+    final String identifier = getString(params, "identifier");
     if (!TextUtils.isEmpty(identifier)) {
-      String value = getString(params, "value");
-      Localytics.setIdentifier(identifier, value);
-    }
-  }
-
-  @ReactMethod
-  public void getIdentifier(final String identifier, final Promise promise) {
-    if (!TextUtils.isEmpty(identifier)) {
-      backgroundHandler.post(new Runnable() {
+      final String value = getString(params, "value");
+      localyticsHandler.post(new Runnable() {
         @Override
         public void run() {
-          promise.resolve(Localytics.getIdentifier(identifier));
+          Localytics.setIdentifier(identifier, value);
         }
       });
     }
   }
 
   @ReactMethod
-  public void setCustomerId(String customerId) {
-    Localytics.setCustomerId(customerId);
-  }
-
-  @ReactMethod
-  public void setCustomerIdWithPrivacyOptedOut(String customerId, Boolean optedOut) {
-    Localytics.setCustomerIdWithPrivacyOptedOut(customerId, optedOut);
-  }
-
-  @ReactMethod
-  public void getCustomerId(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+  public void getIdentifier(final String identifier, final Promise promise) {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.getCustomerId());
+        if (!TextUtils.isEmpty(identifier)) {
+          resolveHandler.post(new Runnable() {
+            @Override
+            public void run() {
+              promise.resolve(Localytics.getIdentifier(identifier));
+            }
+          });
+        }
       }
     });
   }
 
   @ReactMethod
-  public void setLocation(ReadableMap locationMap) {
-    Localytics.setLocation(toLocation(locationMap));
+  public void setCustomerId(final String customerId) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setCustomerId(customerId);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void setCustomerIdWithPrivacyOptedOut(final String customerId, final Boolean optedOut) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setCustomerIdWithPrivacyOptedOut(customerId, optedOut);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void getCustomerId(final Promise promise) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.getCustomerId());
+          }
+        });
+      }
+    });
+  }
+
+  @ReactMethod
+  public void setLocation(final ReadableMap locationMap) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setLocation(toLocation(locationMap));
+      }
+    });
   }
 
   /************************************
@@ -953,86 +1394,130 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
    ************************************/
 
   @ReactMethod
-  public void setOptions(ReadableMap optionsMap) {
-    ReadableMapKeySetIterator iterator = optionsMap.keySetIterator();
-    while (iterator.hasNextKey()) {
-      String key = iterator.nextKey();
-      switch(optionsMap.getType(key)) {
-        case String:
-          Localytics.setOption(key, optionsMap.getString(key));
-          break;
-        case Number:
-          Localytics.setOption(key, optionsMap.getInt(key));
-          break;
-        case Boolean:
-          Localytics.setOption(key, optionsMap.getBoolean(key));
-          break;
-      }
-    }
-  }
-
-  @ReactMethod
-  public void setLoggingEnabled(Boolean enabled) {
-    Localytics.setLoggingEnabled(enabled);
-  }
-
-  @ReactMethod
-  public void isLoggingEnabled(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+  public void setOptions(final ReadableMap optionsMap) {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.isLoggingEnabled());
+        ReadableMapKeySetIterator iterator = optionsMap.keySetIterator();
+        while (iterator.hasNextKey()) {
+          String key = iterator.nextKey();
+          switch(optionsMap.getType(key)) {
+            case String:
+              Localytics.setOption(key, optionsMap.getString(key));
+              break;
+            case Number:
+              Localytics.setOption(key, optionsMap.getInt(key));
+              break;
+            case Boolean:
+              Localytics.setOption(key, optionsMap.getBoolean(key));
+              break;
+          }
+        }
       }
     });
   }
 
   @ReactMethod
-  public void redirectLogsToDisk(ReadableMap params) {
-    Boolean external = getBoolean(params, "external");
-    Localytics.redirectLogsToDisk(external, reactContext);
+  public void setLoggingEnabled(final Boolean enabled) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setLoggingEnabled(enabled);
+      }
+    });
   }
 
   @ReactMethod
-  public void setTestModeEnabled(Boolean enabled) {
-    Localytics.setTestModeEnabled(enabled);
+  public void isLoggingEnabled(final Promise promise) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.isLoggingEnabled());
+          }
+        });
+      }
+    });
+  }
+
+  @ReactMethod
+  public void redirectLogsToDisk(final ReadableMap params) {
+    final Boolean external = getBoolean(params, "external");
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.redirectLogsToDisk(external, reactContext);
+      }
+    });
+  }
+
+  @ReactMethod
+  public void setTestModeEnabled(final Boolean enabled) {
+    localyticsHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        Localytics.setTestModeEnabled(enabled);
+      }
+    });
   }
 
   @ReactMethod
   public void isTestModeEnabled(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.isTestModeEnabled());
-      }
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.isTestModeEnabled());
+          }
+        });      }
     });
   }
 
   @ReactMethod
   public void getInstallId(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.getInstallId());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.getInstallId());
+          }
+        });
       }
     });
   }
 
   @ReactMethod
   public void getAppKey(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.getAppKey());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.getAppKey());
+          }
+        });
       }
     });
   }
 
   @ReactMethod
   public void getLibraryVersion(final Promise promise) {
-    backgroundHandler.post(new Runnable() {
+    localyticsHandler.post(new Runnable() {
       @Override
       public void run() {
-        promise.resolve(Localytics.getLibraryVersion());
+        resolveHandler.post(new Runnable() {
+          @Override
+          public void run() {
+            promise.resolve(Localytics.getLibraryVersion());
+          }
+        });
       }
     });
   }
@@ -1130,7 +1615,7 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
       return null;
     }
 
-    Map<String, String> result = new HashMap<String, String>();
+    Map<String, String> result = new HashMap<>();
     while (iterator.hasNextKey()) {
       String key = iterator.nextKey();
       ReadableType type = readableMap.getType(key);
@@ -1258,7 +1743,7 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
 
   static List<Region> toRegions(ReadableArray readableArray) {
     int size = readableArray.size();
-    List<Region> regions = new ArrayList<Region>();
+    List<Region> regions = new ArrayList<>();
     for (int i = 0; i < size; i++) {
       regions.add(toRegion(readableArray.getMap(i)));
     }
@@ -1447,11 +1932,15 @@ public class LLLocalyticsModule extends ReactContextBaseJavaModule {
   }
 
   static List<String> toStringList(ReadableArray array) {
-    List<String> result = new ArrayList<String>();
+    List<String> result = new ArrayList<>();
     for (int i = 0; i < array.size(); i++) {
       result.add(array.getString(i));
     }
 
     return result;
+  }
+
+  InboxCampaign getInboxCampaignFromCache(int campaignId) {
+    return inboxCampaignCache.get(campaignId);
   }
 }

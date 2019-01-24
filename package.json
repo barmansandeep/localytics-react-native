@@ -1,11 +1,38 @@
 {
-  "name": "localytics-react-native",
-  "version": "2.2.0",
-  "description": "Native bindings for the Localytics iOS & Android SDKs",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "_from": "localytics-react-native@2.3.1",
+  "_id": "localytics-react-native@2.3.1",
+  "_inBundle": false,
+  "_integrity": "sha512-cVKLn3o0Rz+/hXTX2y+4tpHPaXpj/c8fdNFnvp5nvrzdFuaatrGPerSnI2tbpP7xHC/GhAF7WUeJqPLrDoXSVA==",
+  "_location": "/localytics-react-native",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "version",
+    "registry": true,
+    "raw": "localytics-react-native@2.3.1",
+    "name": "localytics-react-native",
+    "escapedName": "localytics-react-native",
+    "rawSpec": "2.3.1",
+    "saveSpec": null,
+    "fetchSpec": "2.3.1"
   },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/localytics-react-native/-/localytics-react-native-2.3.1.tgz",
+  "_shasum": "d1e7870c23e07216ae030ffaee8f50ed3578a3ea",
+  "_spec": "localytics-react-native@2.3.1",
+  "_where": "/Users/sandeepbarman/Downloads/react-native-template-app-master 5/LocalyticsInbox",
+  "author": {
+    "name": "Localytics"
+  },
+  "bugs": {
+    "url": "https://github.com/localytics/localytics-react-native/issues"
+  },
+  "bundleDependencies": false,
+  "deprecated": false,
+  "description": "Native bindings for the Localytics iOS & Android SDKs",
+  "homepage": "https://github.com/localytics/localytics-react-native",
   "keywords": [
     "react-native",
     "localytics",
@@ -15,11 +42,15 @@
     "ios",
     "android"
   ],
+  "license": "Custom",
+  "main": "index.js",
+  "name": "localytics-react-native",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/localytics/localytics-react-native.git"
   },
-  "author": "Localytics",
-  "license": "Custom",
-  "homepage": "https://github.com/localytics/localytics-react-native"
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "2.3.1"
 }

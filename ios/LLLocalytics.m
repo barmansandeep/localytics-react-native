@@ -79,6 +79,12 @@ RCT_EXPORT_MODULE();
     return self.methodSerialQueue;
 }
 
+#pragma mark - React specific integration
+
++ (void)setLocationMonitoringDelegate:(nullable id<LLLocationMonitoringDelegate>)delegate {
+    [LocalyticsPlugin setLocationMonitoringDelegate:delegate];
+}
+
 #pragma mark - Integration
 
 RCT_EXPORT_METHOD(upload) {
@@ -556,6 +562,15 @@ RCT_EXPORT_METHOD(isAdidAppendedToInboxUrls:(RCTPromiseResolveBlock)resolve reje
     });
 }
 
+RCT_EXPORT_METHOD(inboxListItemTapped:(NSDictionary *)params) {
+    if (params[@"campaignId"] == nil) {
+        RCTLogError(@"Unable to find campaignId in params %@", params);
+        return;
+    }
+    NSInteger campaignId = [params[@"campaignId"] integerValue];
+    [LocalyticsPlugin inboxListItemTapped:campaignId];
+}
+
 #pragma mark Places
 RCT_EXPORT_METHOD(triggerPlacesNotification:(NSDictionary *)params) {
     NSInteger campaignId = [params[@"campaignId"] integerValue];
@@ -594,6 +609,10 @@ RCT_EXPORT_METHOD(setMessagingEventsEnabled:(BOOL)enabled) {
 
 RCT_EXPORT_METHOD(setLocationMonitoringEnabled:(BOOL)enabled) {
     [Localytics setLocationMonitoringEnabled:enabled];
+}
+
+RCT_EXPORT_METHOD(persistLocationMonitoring:(BOOL)persist) {
+    [Localytics persistLocationMonitoring:persist];
 }
 
 RCT_EXPORT_METHOD(getGeofencesToMonitor:(NSDictionary *)params callback:(RCTPromiseResolveBlock)resolve rejecter:(__unused RCTPromiseRejectBlock)reject) {
@@ -766,5 +785,5 @@ void myStaticInitMethod(void);
 __attribute__((constructor))
 void myStaticInitMethod()
 {
-    [LocalyticsPlugin setPluginVersion:@"RN_2.2.0"];
+    [LocalyticsPlugin setPluginVersion:@"RN_2.3.1"];
 }

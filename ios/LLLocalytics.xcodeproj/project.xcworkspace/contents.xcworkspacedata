@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:/Users/Mriegelhaupt/Desktop/repos/localytics-react-native/sdk/ios/LLWebView.h">
+   </FileRef>
+   <FileRef
+      location = "group:/Users/Mriegelhaupt/Desktop/repos/localytics-react-native/sdk/ios/LLWebView.m">
+   </FileRef>
+   <FileRef
+      location = "self:">
+   </FileRef>
+</Workspace>

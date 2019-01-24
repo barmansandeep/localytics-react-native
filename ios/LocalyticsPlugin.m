@@ -10,6 +10,7 @@
 
 #import "LocalyticsPlugin.h"
 @import Localytics;
+#import "LLLocalytics.h"
 
 
 @interface LLInboxCampaign (LocalyticsPlugin)
@@ -47,6 +48,7 @@ typedef void (^_Nullable Emitter)(NSString*_Nonnull, id _Nonnull);
 @property (nonatomic, strong) Emitter analyticsEmitter;
 @property (nonatomic, strong) Emitter locationEmitter;
 @property (nonatomic, strong) Emitter ctaEmitter;
+@property (nonatomic, strong) id<LLLocationMonitoringDelegate> locationMonitoringDelegate;
 
 @end
 
@@ -197,14 +199,46 @@ LocalyticsPlugin* shared;
     return YES;
 }
 
+- (BOOL)localyticsShouldDeeplinkToSettings:(LLCampaignBase *)campaign {
+    Emitter emitter = shared.ctaEmitter;
+    if (emitter) {
+        NSDictionary *campaignDict = [LocalyticsPlugin campaignFromGenericCampaignObject:campaign];
+        NSDictionary *body = @{@"campaign": campaignDict};
+        emitter(@"localyticsShouldDeeplinkToSettings", body);
+    }
+    return YES;
+}
+
+- (void)requestAlwaysAuthorization:(CLLocationManager *)manager {
+    LocalyticsPlugin *sharedPlugin = [LocalyticsPlugin sharedInstance];
+    if ([sharedPlugin.locationMonitoringDelegate respondsToSelector:@selector(requestAlwaysAuthorization:)]) {
+        [sharedPlugin.locationMonitoringDelegate requestAlwaysAuthorization:manager];
+    }
+    Emitter emitter = sharedPlugin.ctaEmitter;
+    if (emitter) {
+        emitter(@"requestAlwaysAuthorization", @{});
+    }
+}
+
+- (void)requestWhenInUseAuthorization:(CLLocationManager *)manager {
+    LocalyticsPlugin *sharedPlugin = [LocalyticsPlugin sharedInstance];
+    if ([sharedPlugin.locationMonitoringDelegate respondsToSelector:@selector(requestWhenInUseAuthorization:)]) {
+        [sharedPlugin.locationMonitoringDelegate requestWhenInUseAuthorization:manager];
+    }
+    Emitter emitter = sharedPlugin.ctaEmitter;
+    if (emitter) {
+        emitter(@"requestWhenInUseAuthorization", @{});
+    }
+}
+
 #pragma mark Delegate Registerations
 
 + (void)registerAnalyticsDelegate:(void (^_Nullable)(NSString*_Nonnull, id _Nonnull))eventEmitter {
     if (eventEmitter == nil) {
         [Localytics setAnalyticsDelegate:nil];
-        shared.analyticsEmitter = nil;
+        [LocalyticsPlugin sharedInstance].analyticsEmitter = nil;
     } else {
-        shared.analyticsEmitter = eventEmitter;
+        [LocalyticsPlugin sharedInstance].analyticsEmitter = eventEmitter;
         [Localytics setAnalyticsDelegate:[LocalyticsPlugin sharedInstance]];
     }
 }
@@ -212,9 +246,9 @@ LocalyticsPlugin* shared;
 + (void)registerLocationDelegate:(void (^_Nullable)(NSString*_Nonnull, id _Nonnull))eventEmitter {
     if (eventEmitter == nil) {
         [Localytics setLocationDelegate:nil];
-        shared.locationEmitter = nil;
+        [LocalyticsPlugin sharedInstance].locationEmitter = nil;
     } else {
-        shared.locationEmitter = eventEmitter;
+        [LocalyticsPlugin sharedInstance].locationEmitter = eventEmitter;
         [Localytics setLocationDelegate:[LocalyticsPlugin sharedInstance]];
     }
 }
@@ -222,21 +256,20 @@ LocalyticsPlugin* shared;
 + (void)registerCTADelegate:(void (^_Nullable)(NSString*_Nonnull, id _Nonnull))eventEmitter {
     if (eventEmitter == nil) {
         [Localytics setCallToActionDelegate:nil];
-        shared.ctaEmitter = nil;
+        [LocalyticsPlugin sharedInstance].ctaEmitter = nil;
     } else {
-        shared.ctaEmitter = eventEmitter;
+        [LocalyticsPlugin sharedInstance].ctaEmitter = eventEmitter;
         [Localytics setCallToActionDelegate:[LocalyticsPlugin sharedInstance]];
     }   
 }
 
-- (nullable LLInboxCampaign *)findInboxCampaign:(NSInteger)campaignId {
-    NSArray<LLInboxCampaign *> *campaignList = [Localytics allInboxCampaigns];
-    for (LLInboxCampaign *campaign in campaignList) {
-        if (campaign.campaignId == campaignId) {
-            return campaign;
-        }
++ (void)setLocationMonitoringDelegate:(nullable id<LLLocationMonitoringDelegate>)delegate {
+    LocalyticsPlugin *sharedPlugin = [LocalyticsPlugin sharedInstance];
+    sharedPlugin.locationMonitoringDelegate = delegate;
+    if (sharedPlugin.ctaEmitter == nil && delegate != nil) {
+        //Make sure that if no other delegate was set we still get the callbacks
+        [Localytics setCallToActionDelegate:[LocalyticsPlugin sharedInstance]];
     }
-    return nil;
 }
 
 - (instancetype)init {
@@ -259,7 +292,7 @@ LocalyticsPlugin* shared;
 
 + (void)tagImpressionForInboxCampaignId:(NSInteger)campaignId
                        withActionName:(nonnull NSString*)action {
-    LLInboxCampaign *campaign = LocalyticsPlugin.sharedInstance.inboxCampaignCache[@(campaignId)];
+    LLInboxCampaign *campaign = [LocalyticsPlugin sharedInstance].inboxCampaignCache[@(campaignId)];
     if (campaign) {
         if ([@"click" isEqualToString:action]) {
             [Localytics tagImpressionForInboxCampaign:campaign withType:LLImpressionTypeClick];
@@ -278,10 +311,10 @@ LocalyticsPlugin* shared;
 }
 
 + (void)updateInboxCache:(nonnull NSArray<LLInboxCampaign *> *)  campaigns {
-    dispatch_sync(LocalyticsPlugin.sharedInstance.inboxCacheSerialQueue, ^{
+    dispatch_sync([LocalyticsPlugin sharedInstance].inboxCacheSerialQueue, ^{
         // Cache campaigns - Dont clear out here. This is not all campaigns
         for (LLInboxCampaign *campaign in campaigns) {
-            [LocalyticsPlugin.sharedInstance.inboxCampaignCache setObject:campaign forKey:@(campaign.campaignId)];
+            [[LocalyticsPlugin sharedInstance].inboxCampaignCache setObject:campaign forKey:@(campaign.campaignId)];
         }
     });
 }
@@ -292,14 +325,14 @@ LocalyticsPlugin* shared;
     for (LLInboxCampaign *campaign in campaigns) {
         [newCache setObject:campaign forKey:@(campaign.campaignId)];
     }
-    dispatch_sync(LocalyticsPlugin.sharedInstance.inboxCacheSerialQueue, ^{
-        LocalyticsPlugin.sharedInstance.inboxCampaignCache = newCache;
+    dispatch_sync([LocalyticsPlugin sharedInstance].inboxCacheSerialQueue, ^{
+        [LocalyticsPlugin sharedInstance].inboxCampaignCache = newCache;
     });
 }
 
 + (void)tagImpressionForPushToInboxCampaign:(NSInteger)campaignId success:(BOOL)success {
-    dispatch_sync(LocalyticsPlugin.sharedInstance.inboxCacheSerialQueue, ^{
-        LLInboxCampaign* campaign = [LocalyticsPlugin.sharedInstance findInboxCampaign:campaignId];
+    dispatch_sync([LocalyticsPlugin sharedInstance].inboxCacheSerialQueue, ^{
+        LLInboxCampaign* campaign = [LocalyticsPlugin sharedInstance].inboxCampaignCache[@(campaignId)];
         if (campaign) {
             [Localytics tagImpressionForPushToInboxCampaign:campaign success:success];
         }
@@ -308,15 +341,19 @@ LocalyticsPlugin* shared;
 
 + (NSInteger)inboxUnreadCount {
     __block NSInteger count;
-    dispatch_sync(LocalyticsPlugin.sharedInstance.inboxCacheSerialQueue, ^{
+    dispatch_sync([LocalyticsPlugin sharedInstance].inboxCacheSerialQueue, ^{
         count = [Localytics inboxCampaignsUnreadCount];
     });
     return count;
 }
 
++ (LLInboxCampaign *)inboxCampaignFromCache:(NSInteger)campaignId {
+    return [LocalyticsPlugin sharedInstance].inboxCampaignCache[@(campaignId)];
+}
+
 + (void)markInboxCampaign:(NSInteger)campaignId asRead:(BOOL)read {
-    dispatch_sync(LocalyticsPlugin.sharedInstance.inboxCacheSerialQueue, ^{
-        LLInboxCampaign* campaign = [LocalyticsPlugin.sharedInstance findInboxCampaign:campaignId];
+    dispatch_sync([LocalyticsPlugin sharedInstance].inboxCacheSerialQueue, ^{
+        LLInboxCampaign* campaign = [LocalyticsPlugin sharedInstance].inboxCampaignCache[@(campaignId)];
         if (campaign==nil) {
             NSLog(@"No campaign found for id :%ld", (long)campaignId);
         }
@@ -325,13 +362,28 @@ LocalyticsPlugin* shared;
 }
 
 + (void)deleteInboxCampaign:(NSInteger)campaignId {
-    dispatch_sync(LocalyticsPlugin.sharedInstance.inboxCacheSerialQueue, ^{
-        LLInboxCampaign *campaign = [LocalyticsPlugin.sharedInstance findInboxCampaign:campaignId];
+    dispatch_sync([LocalyticsPlugin sharedInstance].inboxCacheSerialQueue, ^{
+        LLInboxCampaign *campaign = LocalyticsPlugin.sharedInstance.inboxCampaignCache[@(campaignId)];
         if (campaign==nil) {
             NSLog(@"No campaign found for id :%ld", (long)campaignId);
+        } else {
+            [Localytics deleteInboxCampaign:campaign];
+            [[LocalyticsPlugin sharedInstance].inboxCampaignCache removeObjectForKey:@(campaignId)];
         }
-        [Localytics deleteInboxCampaign:campaign];
+        
     });   
+}
+
++ (void)inboxListItemTapped:(NSInteger)campaignId {
+    dispatch_sync([LocalyticsPlugin sharedInstance].inboxCacheSerialQueue, ^{
+        LLInboxCampaign *campaign = LocalyticsPlugin.sharedInstance.inboxCampaignCache[@(campaignId)];
+        if (campaign==nil) {
+            NSLog(@"No campaign found for id :%ld", (long)campaignId);
+        } else {
+            [Localytics inboxListItemTapped:campaign];
+        }
+        
+    });
 }
 
 /**
@@ -618,6 +670,14 @@ LocalyticsPlugin* shared;
     }
     if (inAppConfig[@"backgroundAlpha"]) {
         self.backgroundAlpha = [inAppConfig[@"backgroundAlpha"] floatValue];
+    }
+
+    if (inAppConfig[@"autoHideHomeScreenIndicator"]) {
+        self.autoHideHomeScreenIndicator = [inAppConfig[@"autoHideHomeScreenIndicator"] boolValue]; 
+    }
+
+    if (inAppConfig[@"notchFullScreen"]) {
+        self.notchFullScreen = [inAppConfig[@"notchFullScreen"] boolValue]; 
     }
 }
 @end

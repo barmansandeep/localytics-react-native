@@ -16,6 +16,8 @@
 		097D4AB62044DF08002C2E32 /* CLLocation+LocalyticsHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 097D4AB52044DF08002C2E32 /* CLLocation+LocalyticsHelper.m */; };
 		09874788204458AA0072D8CB /* LLObservingEmitter.m in Sources */ = {isa = PBXBuildFile; fileRef = 09874787204458AA0072D8CB /* LLObservingEmitter.m */; };
 		A90A846320D7DE2D00BFA455 /* LLCallToActionEmitter.m in Sources */ = {isa = PBXBuildFile; fileRef = A90A846120D7DE2C00BFA455 /* LLCallToActionEmitter.m */; };
+		A9A3ADA021C3D1BE00198E1D /* LLWebViewManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A9A3AD9F21C3D1BE00198E1D /* LLWebViewManager.m */; };
+		A9EC79EB21C96FF000C318F5 /* LLWebView.m in Sources */ = {isa = PBXBuildFile; fileRef = A9EC79EA21C96FF000C318F5 /* LLWebView.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -49,6 +51,10 @@
 		A90A845B20D7CEDC00BFA455 /* Frameworks */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Frameworks; sourceTree = "<group>"; };
 		A90A846120D7DE2C00BFA455 /* LLCallToActionEmitter.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LLCallToActionEmitter.m; sourceTree = "<group>"; };
 		A90A846220D7DE2D00BFA455 /* LLCallToActionEmitter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LLCallToActionEmitter.h; sourceTree = "<group>"; };
+		A9A3AD9E21C3D1BE00198E1D /* LLWebViewManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LLWebViewManager.h; sourceTree = "<group>"; };
+		A9A3AD9F21C3D1BE00198E1D /* LLWebViewManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LLWebViewManager.m; sourceTree = "<group>"; };
+		A9EC79E921C96FEC00C318F5 /* LLWebView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LLWebView.h; sourceTree = "<group>"; };
+		A9EC79EA21C96FF000C318F5 /* LLWebView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LLWebView.m; sourceTree = "<group>"; };
 		B3E7B5881CC2AC0600A0062D /* LLLocalytics.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LLLocalytics.h; sourceTree = "<group>"; };
 		B3E7B5891CC2AC0600A0062D /* LLLocalytics.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LLLocalytics.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -100,6 +106,10 @@
 				094653FE204308FD00948E94 /* PluginLibrary */,
 				B3E7B5881CC2AC0600A0062D /* LLLocalytics.h */,
 				B3E7B5891CC2AC0600A0062D /* LLLocalytics.m */,
+				A9A3AD9E21C3D1BE00198E1D /* LLWebViewManager.h */,
+				A9A3AD9F21C3D1BE00198E1D /* LLWebViewManager.m */,
+				A9EC79E921C96FEC00C318F5 /* LLWebView.h */,
+				A9EC79EA21C96FF000C318F5 /* LLWebView.m */,
 				81E3E1471EFD7BD60044EC51 /* LLAnalyticsEmitter.h */,
 				81E3E1481EFD7BD60044EC51 /* LLAnalyticsEmitter.m */,
 				09162A9B204257AD00DD835D /* LLMessagingEmitter.h */,
@@ -140,7 +150,7 @@
 		58B511D31A9E6C8500147676 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0920;
+				LastUpgradeCheck = 0940;
 				ORGANIZATIONNAME = Localytics;
 				TargetAttributes = {
 					09F67E4C203E9AE1006B4E16 = {
@@ -172,6 +182,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A90A846320D7DE2D00BFA455 /* LLCallToActionEmitter.m in Sources */,
+				A9EC79EB21C96FF000C318F5 /* LLWebView.m in Sources */,
 				09874788204458AA0072D8CB /* LLObservingEmitter.m in Sources */,
 				094652EA204270C600948E94 /* LLLocalytics.m in Sources */,
 				09162A9D204257AD00DD835D /* LLMessagingEmitter.m in Sources */,
@@ -180,6 +191,7 @@
 				09162A98204253B900DD835D /* LLMessagingDelegateBridge.m in Sources */,
 				09162A99204253C300DD835D /* LLLocationEmitter.m in Sources */,
 				09162A9A204253CB00DD835D /* LLAnalyticsEmitter.m in Sources */,
+				A9A3ADA021C3D1BE00198E1D /* LLWebViewManager.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -270,12 +282,14 @@
 				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
@@ -320,12 +334,14 @@
 				CLANG_WARN_BOOL_CONVERSION = YES;
 				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;

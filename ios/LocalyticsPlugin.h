@@ -11,9 +11,11 @@
 
 @class LLInAppCampaign;
 @class LLPlacesCampaign;
+@class LLInboxCampaign;
 @class LLCustomer;
 @class LLInAppConfiguration;
 @class LLRegion;
+@protocol LLLocationMonitoringDelegate;
 
 @interface LocalyticsPlugin : NSObject
 + (nonnull LocalyticsPlugin*) sharedInstance;
@@ -31,8 +33,10 @@
 + (void)refreshInboxCampaigns:(nonnull void (^)(NSArray<NSDictionary *> * _Nullable inboxCampaigns))completionBlock;
 + (void)refreshAllInboxCampaigns:(nonnull void (^)(NSArray<NSDictionary *> * _Nullable inboxCampaigns))completionBlock;
 + (NSInteger)inboxUnreadCount;
++ (LLInboxCampaign *)inboxCampaignFromCache:(NSInteger)campaignId;
 + (void)markInboxCampaign:(NSInteger)campaignId asRead:(BOOL)read;
 + (void)deleteInboxCampaign:(NSInteger)campaignId;
++ (void)inboxListItemTapped:(NSInteger)campaignId;
 
 + (void)setPluginVersion:(nonnull NSString*)version;
 
@@ -43,7 +47,7 @@
 + (void)registerAnalyticsDelegate:(void (^_Nullable)(NSString*_Nonnull, id _Nonnull))eventEmitter;
 + (void)registerLocationDelegate:(void (^_Nullable)(NSString*_Nonnull, id _Nonnull))eventEmitter;
 + (void)registerCTADelegate:(void (^_Nullable)(NSString*_Nonnull, id _Nonnull))eventEmitter;
-
++ (void)setLocationMonitoringDelegate:(nullable id<LLLocationMonitoringDelegate>)delegate;
 
 + (nonnull NSArray<NSDictionary<NSString *, NSObject *> *> *)dictionaryArrayFromRegions:(nonnull NSArray<LLRegion *> *)regions;
 + (nonnull NSDictionary<NSString *, NSObject *> *)dictionaryFromInAppCampaign:(nonnull LLInAppCampaign *)campaign;
